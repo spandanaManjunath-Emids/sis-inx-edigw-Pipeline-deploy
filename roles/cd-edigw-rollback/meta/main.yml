@@ -1,0 +1,14 @@
+---
+galaxy_info:
+  author: Vijayakumar Sankaramoorthy
+  description: Rollback Actions for EDIGW
+  company: Gainwell Technologies
+  license: Gainwell Intellectual Property
+  galaxy_tags:
+    - rollback
+    - edigw
+  platforms:
+  - name: Windows
+  min_ansible_version: 2.9
+  role_name: cd-edigw-rollback
+dependencies: []

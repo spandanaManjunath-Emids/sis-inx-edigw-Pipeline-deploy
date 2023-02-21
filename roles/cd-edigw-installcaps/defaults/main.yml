@@ -1,0 +1,6 @@
+---
+product_install_historybasedir: 'C:\DONOT_DELETE'
+product_install_historyfolder: "{{ product_install_historybasedir }}\\{{ product_name }}"
+product_install_historycsv: "InstallationHistory.csv"
+product_install_basepath: 'C:\Program Files (x86)\Molina'
+product_update_password: "on_create"

@@ -1,0 +1,4 @@
+---
+- name: Product Application {{ product_install_type }} Test
+  ansible.builtin.include_tasks:
+    file: "{{ product_install_type }}.yml"

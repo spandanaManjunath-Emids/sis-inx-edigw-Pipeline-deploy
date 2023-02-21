@@ -1,0 +1,240 @@
+---
+- name: Verify if Product Config exists
+  ansible.windows.win_stat:
+    path: "{{ product_install_src }}\\{{ product_install_config }}"
+  register: product_config_info
+
+- name: Fail if Product Config doesnot exist
+  ansible.builtin.fail:
+    msg: "Unable to locate Product Config File {{ product_install_config }} in Installation Source Location"
+  when: not product_config_info.stat.exists
+
+- name: Identify Product Exe from config filename
+  ansible.builtin.set_fact:
+    product_install_exe: '{{ (product_install_config.split("."))[:-1] | join(".") }}'
+
+- name: Verify if Product Exe exists
+  ansible.windows.win_stat:
+    path: "{{ product_install_src }}\\{{ product_install_exe }}"
+  register: product_exe_info
+
+- name: Fail if Product Exe doesnot exist
+  ansible.builtin.fail:
+    msg: "Unable to locate Product Exe File {{ product_install_exe }} in Installation Source Location"
+  when: not product_exe_info.stat.exists
+
+- name: Get Product version info
+  community.windows.win_file_version:
+    path: "{{ product_install_src }}\\{{ product_install_exe }}"
+  register: product_exever_info
+
+- name: Get Product Config File to Controller
+  ansible.builtin.fetch:
+    src: "{{ product_install_src }}\\{{ product_install_config }}"
+    dest: "{{ role_path }}/templates/"
+    flat: yes
+  when: (is_rollback is undefined) or
+        (is_rollback is defined and not is_rollback|bool)
+
+- name: Update Product Config File to reflect Environment Specific values
+  ansible.windows.win_template:
+    src: "{{ product_install_config }}"
+    dest: '{{ product_install_src }}\{{ product_install_config }}'
+    output_encoding: utf-8
+  when: (is_rollback is undefined) or
+        (is_rollback is defined and not is_rollback|bool)
+
+- name: Verify if Product Install History exists
+  ansible.windows.win_stat:
+    path: "{{ product_install_historyfolder }}\\{{ product_install_historycsv }}"
+  register: product_install_historystat
+
+- name: Ensure Product Install History folder exists
+  ansible.windows.win_file:
+    path: "{{ product_install_historyfolder }}"
+    state: directory
+
+- name: Insert Product Install History Header
+  ansible.windows.win_copy:
+    content: "{{ product_install_historyheader }}"
+    dest: "{{ product_install_historyfolder }}\\{{ product_install_historycsv }}"
+  when: not product_install_historystat.stat.exists
+
+- name: Verify if Product service exists
+  ansible.windows.win_service:
+    name: "{{ product_install_name }}"
+  register: product_service_info
+
+- name: Ensure Product SharePath Directories are created
+  ansible.windows.win_file:
+    path: "{{ item.path }}"
+    state: directory
+  loop: "{{ product_share_paths }}"
+
+- name: Add Product Shares
+  ansible.windows.win_share:
+    name: "{{ item.name }}"
+    description: "{{ item.description }}"
+    path: "{{ item.path }}"
+    list: yes
+    full: Administrators
+    change: "{{ product_install_username }}"
+    rule_action: add
+  loop: "{{ product_share_paths }}"
+
+- name: Stop Product service if exists
+  ansible.windows.win_service:
+    name: "{{ product_install_name }}"
+    state: stopped
+  when: product_service_info.exists
+
+- name: Remove Product Installation Temp Backup Directory if exists
+  ansible.windows.win_file:
+    path: "{{ product_service_info.path | trim(doublequotes_character) | win_dirname | trim(backslash_character) }}_backup"
+    state: absent
+  when: product_service_info.exists
+
+- name: Prepare Product Installation Temp Backup
+  ansible.windows.win_copy:
+    src: "{{ product_service_info.path | trim(doublequotes_character) | win_dirname | trim(backslash_character) }}\\"
+    dest: "{{ product_service_info.path | trim(doublequotes_character) | win_dirname | trim(backslash_character) }}_backup"
+    remote_src: yes
+  when: product_service_info.exists
+
+- name: Grant Product Service account SeServiceLogonRight
+  ansible.windows.win_user_right:
+    name: SeServiceLogonRight
+    users:
+      - "{{ product_install_username }}"
+    action: add
+
+- name: Add Product Service account to Local Administrators
+  ansible.windows.win_group_membership:
+    name: Administrators
+    members:
+      - "{{ product_install_username }}"
+    state: present
+
+- name: Installation Block
+  block:
+    - name: Remove Product Installation Directory if exists
+      ansible.windows.win_file:
+        path: "{{ product_install_basepath }}\\{{ product_install_name }}"
+        state: absent
+
+    - name: Copy Product Package to Installation Directory
+      ansible.windows.win_copy:
+        src: "{{ product_install_src }}\\"
+        dest: "{{ product_install_basepath }}\\{{ product_install_name }}"
+        remote_src: yes
+
+    - name: Verify existence of StoredProcMappingFile in Product Package
+      ansible.windows.win_stat:
+        path: "{{ product_install_src }}\\StoreProcedureMapping.xml"
+      register: product_storedproc_info
+
+    - name: Ensure Directory for StoredProcMappingFile exists
+      ansible.windows.win_file:
+        path: "{{ edigw_StoredProcMappingFilePath | win_dirname }}"
+        state: directory
+      when: product_storedproc_info.stat.exists
+
+    - name: Copy StoredProcMappingFile
+      ansible.windows.win_copy:
+        src: "{{ product_install_src }}\\StoreProcedureMapping.xml"
+        dest: "{{ edigw_StoredProcMappingFilePath }}"
+        remote_src: yes
+        backup: yes
+      register: product_storedproccopy_info
+      when: product_storedproc_info.stat.exists
+
+    - name: Create Product service if doesnot exist
+      ansible.windows.win_service:
+        name: "{{ product_install_name }}"
+        path: "\"{{ product_install_basepath }}\\{{ product_install_name }}\\{{ product_install_exe }}\""
+        display_name: "{{ product_install_name }}"
+        username: "{{ product_install_username }}"
+        password: "{{ product_install_password }}"
+        state: stopped
+        start_mode: auto
+        update_password: "{{ product_update_password }}"
+
+    - name: Start Product Service
+      ansible.windows.win_service:
+        name: "{{ product_install_name }}"
+        state: started
+
+    - name: Remove Product Installation Temp Backup Directory if exists
+      ignore_errors: true
+      ansible.windows.win_file:
+        path: "{{ product_service_info.path | trim(doublequotes_character) | win_dirname | trim(backslash_character) }}_backup"
+        state: absent
+      when: product_service_info.exists
+
+    - name: Remove StoredProcMappingFile Temp Backup if exists
+      ignore_errors: true
+      ansible.windows.win_file:
+        path: "{{ product_storedproccopy_info.backup_file }}"
+        state: absent
+      when: product_storedproccopy_info.backup_file is defined and product_storedproccopy_info.backup_file|length > 0
+
+  rescue:
+    - name: Product Rollback due to installation failure
+      block:
+        - name: Ensure to Stop Product Service for rollback
+          ansible.windows.win_service:
+            name: "{{ product_install_name }}"
+            state: stopped
+
+        - name: Remove Product Installation Directory
+          ansible.windows.win_file:
+            path: "{{ product_service_info.path | trim(doublequotes_character) | win_dirname | trim(backslash_character) }}"
+            state: absent
+
+        - name: Restore Product Installation Directory from Temp Backup
+          ansible.windows.win_copy:
+            src: "{{ product_service_info.path | trim(doublequotes_character) | win_dirname | trim(backslash_character) }}_backup\\"
+            dest: "{{ product_service_info.path | trim(doublequotes_character) | win_dirname | trim(backslash_character) }}"
+            remote_src: yes
+
+        - name: Restore StoredProcMappingFile
+          ansible.windows.win_copy:
+            src: "{{ product_storedproccopy_info.backup_file }}"
+            dest: "{{ edigw_StoredProcMappingFilePath }}"
+            remote_src: yes
+          when: product_storedproccopy_info.backup_file is defined and product_storedproccopy_info.backup_file|length > 0
+
+        - name: Configure Product service to point previous executable
+          ansible.windows.win_service:
+            name: "{{ product_install_name }}"
+            path: "{{ product_service_info.path }}"
+            display_name: "{{ product_install_name }}"
+            username: "{{ product_install_username }}"
+            password: "{{ product_install_password }}"
+            state: stopped
+            start_mode: auto
+            update_password: "{{ product_update_password }}"
+
+        - name: Start Product Service
+          ansible.windows.win_service:
+            name: "{{ product_install_name }}"
+            state: started
+
+        - name: Remove Product Installation Temp Backup Directory
+          ansible.windows.win_file:
+            path: "{{ product_service_info.path | trim(doublequotes_character) | win_dirname | trim(backslash_character) }}_backup"
+            state: absent
+      when:
+        - product_service_info.exists
+        - (is_rollback is undefined) or
+          (is_rollback is defined and not is_rollback|bool)
+
+    - name: Product Install Abrupt Failure
+      ansible.builtin.fail:
+        msg: "Product Installation Failed Abruptly, rollback has been executed if applicable"
+
+- name: Set Product Service Installation Status
+  ansible.builtin.set_fact:
+    is_product_installed: true
+    product_install_exesrc: "{{ product_install_src }}"
+    product_install_exever: "{{ product_exever_info.win_file_version.file_version }}"

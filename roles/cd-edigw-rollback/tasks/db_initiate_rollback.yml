@@ -1,0 +1,27 @@
+---
+- name: Prepare Rollback Script
+  vars:
+    product_db_rollbackquery: |
+      USE MASTER
+      GO
+      ALTER DATABASE {{ product_dbconnection_info.stdout_lines[2] }} SET SINGLE_USER WITH ROLLBACK IMMEDIATE
+      GO
+      RESTORE DATABASE {{ product_dbconnection_info.stdout_lines[2] }} FROM DISK=N'{{ product_db_rollbackpath }}' WITH REPLACE
+      ALTER DATABASE {{ product_dbconnection_info.stdout_lines[2] }} SET MULTI_USER
+      GO
+  ansible.windows.win_copy:
+    content: "{{ product_db_rollbackquery }}"
+    dest: "{{ product_install_historyfolder }}\\rollback-{{ product_dbconnection_info.stdout_lines[2] }}.sql"
+
+- name: Update DB
+  run_once: true
+  vars:
+    product_install_absoluteconfig: "{{ product_install_currentpath }}\\{{ product_install_config }}"
+    product_install_src: "{{ product_install_historyfolder }}"
+  ansible.builtin.include_role:
+    name: cd-edigw-updatedb
+
+- name: Remove Rollback Script
+  ansible.windows.win_file:
+    path: "{{ product_install_historyfolder }}\\rollback-{{ product_dbconnection_info.stdout_lines[2] }}.sql"
+    state: absent

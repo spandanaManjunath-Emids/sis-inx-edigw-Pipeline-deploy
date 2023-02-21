@@ -1,0 +1,7 @@
+---
+product_db_username: "{{ ansible_user }}"
+product_db_password: "{{ ansible_password }}"
+uninstall_backup_dest: 'C:\Temp\CD\Backup'
+product_dbbackup_dest: "{{ uninstall_backup_dest }}"
+product_backup_age: "30d"
+product_dbbackup_age: "{{ product_backup_age }}"

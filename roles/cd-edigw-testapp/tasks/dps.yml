@@ -1,0 +1,43 @@
+---
+- name: Set Product Output Test Facts
+  ansible.builtin.set_fact:
+    product_output_date: "{{ ansible_date_time.iso8601_basic[:8] }}"
+    product_output_firstdir: "{{ product_dpstest_inputfile | win_basename | split('-') | first }}"
+    product_output_lastdir: "{{ product_dpstest_inputfile | win_basename | split('-') | last }}"
+    product_output_file: "{{ product_dpstest_inputfile | win_basename }}"
+
+- name: Clear the test Output dir if exists
+  ansible.windows.win_file:
+    path: '{{ product_dpstest_outputdir }}\{{ product_output_date }}\Upload\{{ product_output_firstdir }}\{{ product_output_lastdir }}'
+    state: absent
+
+- name: Copy Product Input test file
+  ansible.windows.win_copy:
+    src: "{{ product_dpstest_inputfile }}"
+    dest: "{{ product_dpstest_inputdir }}\\"
+
+- name: Validate the existence of processed file
+  ansible.windows.win_stat:
+    path: '{{ product_dpstest_outputdir }}\{{ product_output_date }}\Upload\{{ product_output_firstdir }}\{{ product_output_lastdir }}\{{ product_output_file }}'
+  until: product_dpstest_result.stat.exists
+  retries: 7
+  delay: 10
+  failed_when: false
+  register: product_dpstest_result
+
+- name: Clear the test file from Input dir if exists
+  ansible.windows.win_file:
+    path: "{{ product_dpstest_inputdir }}\\{{ product_output_file }}"
+    state: absent
+
+- name: Clear the test Output dir if exists
+  ansible.windows.win_file:
+    path: '{{ product_dpstest_outputdir }}\{{ product_output_date }}\Upload\{{ product_output_firstdir }}\{{ product_output_lastdir }}'
+    state: absent
+
+- name: Product Test Result
+  ansible.builtin.assert:
+    that:
+      - product_dpstest_result.stat.exists
+    fail_msg: "Input File is not processed and archived"
+    success_msg: "Successfully processed the input file and moved to archive"

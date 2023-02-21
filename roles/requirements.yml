@@ -1,0 +1,11 @@
+---
+
+# Common roles
+
+- src: git+https://github.com/mygainwell/pfe-oc-cd-getartifact.git
+  name: pfe-oc-cd-getartifact
+  version: main
+
+- src: git+https://github.com/mygainwell/pfe-oc-cd-extractartifact.git
+  name: pfe-oc-cd-extractartifact
+  version: main

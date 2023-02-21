@@ -1,0 +1,75 @@
+---
+- name: Set Non-Feasibility Fact for Product Rollback
+  ansible.builtin.set_fact:
+    is_rollback_feasible: false
+
+- name: Verify if Product Install History exists
+  ansible.windows.win_stat:
+    path: "{{ product_install_historyfolder }}\\{{ product_install_historycsv }}"
+  register: product_install_historystat
+
+- name: Process Product Install History
+  block:
+    - name: Fetch Product Install History to Controller
+      ansible.builtin.fetch:
+        src: "{{ product_install_historyfolder }}\\{{ product_install_historycsv }}"
+        dest: "{{ role_path }}/files/"
+        flat: yes
+
+    - name: Read Product Install History
+      delegate_to: localhost
+      community.general.read_csv:
+        path: "{{ role_path }}/files/{{ product_install_historycsv }}"
+        unique: yes
+        delimiter: ","
+        skipinitialspace: yes
+        strict: yes
+      register: product_install_history
+
+    - name: Clear Product Install History from Controller
+      delegate_to: localhost
+      ansible.builtin.file:
+        path: "{{ role_path }}/files/{{ product_install_historycsv }}"
+        state: absent
+
+    - name: Set Product Rollback Facts
+      ansible.builtin.set_fact:
+        product_install_datetime: "{{ product_install_history.list[0].DateTime }}"
+        product_install_currentver: "{{ product_install_history.list[0].CurrentVersion }}"
+        product_install_currentsrc: "{{ product_install_history.list[0].CurrentInstallSource }}"
+        product_install_previousver: "{{ product_install_history.list[0].PreviousVersion }}"
+        product_install_previoussrc: "{{ product_install_history.list[0].PreviousInstallSource }}"
+        product_db_rollbackpath: "{{ product_install_history.list[0].DBBackupPath }}"
+      when: product_install_history.list[0] is defined and product_install_history.list[0] | length == 6
+  when: product_install_historystat.stat.exists
+
+
+- name: Validate Product Previous Install Source existence
+  ansible.windows.win_stat:
+    path: "{{ product_install_previoussrc }}\\{{ product_install_config }}"
+  register: product_install_previoussrcstat
+  when: product_install_previoussrc is defined and product_install_previoussrc|length > 0
+
+- name: Set Rollback inapplicability for no previous install
+  ansible.builtin.set_fact:
+    is_rollback_skipped: true
+  when: (product_install_previoussrc is defined and product_install_previoussrc|length == 0) or
+        (not product_install_historystat.stat.exists)
+
+- name: Set Feasibility Fact for Product Rollback
+  ansible.builtin.set_fact:
+    is_rollback_feasible: true
+  when: product_install_previoussrcstat.stat is defined and product_install_previoussrcstat.stat.exists
+
+- name: Product Rollback Skip Status
+  ansible.builtin.debug:
+    msg: "Product Rollback opportunity has been skipped either through user demand or due to inapplicability"
+  when: is_rollback_skipped is defined and is_rollback_skipped|bool
+
+- name: Product Rollback Feasibility Conclusion
+  ansible.builtin.fail:
+    msg: "There is no Feasibility to rollback the Product due to lack of access to previous installable/backup"
+  when:
+    - is_rollback_feasible is defined and not is_rollback_feasible|bool
+    - (is_rollback_skipped is undefined) or
+      (is_rollback_skipped is defined and not is_rollback_skipped|bool)

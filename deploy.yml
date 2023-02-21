@@ -1,0 +1,183 @@
+---
+- hosts: all:!localhost
+  gather_facts: false
+  vars_files:
+     - vars/deploy_vars.yml
+
+  tasks:
+
+    - name: Inventory Limit Condition Check
+      run_once: true
+      ansible.builtin.fail:
+        msg: "Inventory Limit is blank"
+      when:
+        - ansible_limit is undefined
+        - validate_limit|bool
+      tags:
+        - always
+
+    - name: "Validate connection and credentials"
+      become: "{{ enable_elevation }}"
+      become_user: "{{ elevation_user }}"
+      become_method: "{{ elevation_method }}"
+      action: >-
+        {{ ping_module_name }}
+      tags:
+        - always
+
+    - name: Gather Minimum facts
+      vars:
+        async_timeout: 60
+        async_poll: 3
+      ansible.builtin.setup:
+        gather_subset:
+          - '!all'
+          - '!any'
+      async: "{{ async_timeout }}"
+      poll: "{{ async_poll }}"
+      tags:
+        - always
+
+    - name: Set Product Backup Timestamp
+      ansible.builtin.set_fact:
+        product_backup_timestamp: "{{ ansible_date_time.iso8601_basic_short }}"
+      tags:
+        - always
+
+    - name: Rollback Action
+      ansible.builtin.include_role:
+        name: cd-edigw-rollback
+        apply:
+          tags:
+            - bt
+            - caps
+            - db
+            - rollback
+      when:
+        - (product_db_server is undefined) or
+          (product_db_server is defined and product_db_server != inventory_hostname)
+        - (is_rollback_skipped is undefined) or
+          (is_rollback_skipped is defined and not is_rollback_skipped|bool)
+      tags:
+        - bt
+        - caps
+        - db
+        - rollback
+
+    - name: Get Artifact
+      ansible.builtin.include_role:
+        name: pfe-oc-cd-getartifact
+        apply:
+          tags:
+            - bt
+            - db
+            - caps
+      when:
+        - (product_db_server is undefined) or
+          (product_db_server is defined and product_db_server != inventory_hostname)
+        - (is_rollback is undefined) or
+          (is_rollback is defined and not is_rollback|bool)
+        - (is_rollback_feasible is defined and is_rollback_feasible|bool) or
+          (is_rollback_skipped is defined and is_rollback_skipped|bool)
+      tags:
+        - bt
+        - db
+        - caps
+
+    - name: Extract Artifact
+      vars:
+        artifact_src: "{{ artifact_download_result.dest }}"
+      ansible.builtin.include_role:
+        name: pfe-oc-cd-extractartifact
+        apply:
+          tags:
+            - bt
+            - db
+            - caps
+      when: artifact_download_result.dest is defined
+      tags:
+        - bt
+        - db
+        - caps
+
+    - name: Install EDIGW 277CA Processor service 
+      vars:
+        product_install_src: "{{ artifact_extract_dest }}"
+      ansible.builtin.include_role:
+        name: cd-edigw-installcaps
+        apply:
+          tags:
+            - bt
+            - caps
+      when:
+        - artifact_extract_result is defined and artifact_extract_result is changed
+        - (is_rollback_feasible is defined and is_rollback_feasible|bool) or
+          (is_rollback_skipped is defined and is_rollback_skipped|bool)
+        - (product_db_server is undefined) or
+          (product_db_server is defined and product_db_server != inventory_hostname)
+      tags:
+        - bt
+        - caps
+
+    - name: Update DB
+      run_once: true
+      vars:
+        product_install_src: "{{ artifact_extract_dest }}"
+        product_backup_path: '{{ product_dbbackup_dest }}\{{ product_name }}\{{ product_backup_timestamp }}'
+      ansible.builtin.include_role:
+        name: cd-edigw-updatedb
+        apply:
+          tags:
+            - db
+      when:
+        - (is_rollback is undefined) or
+          (is_rollback is defined and not is_rollback|bool)
+        - (is_rollback_feasible is defined and is_rollback_feasible|bool) or
+          (is_rollback_skipped is defined and is_rollback_skipped|bool)
+      tags:
+        - db
+
+    - name: Update Product Install History
+      community.windows.win_lineinfile:
+        path: "{{ product_install_historyfolder }}\\{{ product_install_historycsv }}"
+        insertafter: "{{ product_install_historyheader }}"
+        line: "{{ ansible_date_time.iso8601 }},{{ product_install_exever|default('') }},{{ product_install_exesrc|default('') }},{{ product_install_currentver|default('') }},{{ product_install_currentsrc|default('') }},{{ product_db_backuppath|default('') }}"
+        backup: yes
+      when:
+        - (is_rollback is undefined) or
+          (is_rollback is defined and not is_rollback|bool)
+        - (is_product_installed is defined and is_product_installed|bool) or
+          (product_db_backuppath is defined and product_db_backuppath|length > 0)
+      tags:
+        - bt
+        - caps
+        - db
+
+    - name: Update Product Install History (Rollback)
+      community.windows.win_lineinfile:
+        path: "{{ product_install_historyfolder }}\\{{ product_install_historycsv }}"
+        line: "{{ product_install_datetime }},{{ product_install_currentver }},{{ product_install_currentsrc }},{{ product_install_previousver }},{{ product_install_previoussrc }},{{ product_db_rollbackpath }}"
+        state: absent
+        backup: yes
+      when: is_rollback is defined and is_rollback|bool
+      tags:
+        - bt
+        - caps
+        - db
+        - rollback
+
+    - name: Test Application
+      ansible.builtin.include_role:
+        name: cd-edigw-testapp
+        apply:
+          tags:
+            - bt
+            - caps
+            - testapp
+            - rollback
+      when: product_install_type is defined and product_install_type in ["caps"]
+      tags:
+        - bt
+        - caps
+        - testapp
+        - rollback

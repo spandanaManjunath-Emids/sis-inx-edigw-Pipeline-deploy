@@ -1,0 +1,23 @@
+---
+- name: Validate Product Task existence
+  community.windows.win_scheduled_task_stat:
+    name: "{{ item.name }}"
+  register: product_install_taskinfo
+  loop: "{{ product_tasks_details }}"
+
+- name: Get Current Product Task Installation Directory
+  ansible.builtin.set_fact:
+    product_install_currentpath: "{{ item.actions[0].path | win_dirname | trim(doublequote_character) | trim(backslash_character) }}"
+  when: item.task_exists is defined and item.task_exists
+  loop: "{{ product_install_taskinfo.results }}"
+
+- name: Stat Product Task Config file
+  ansible.windows.win_stat:
+    path: "{{ product_install_currentpath }}\\{{ product_install_config }}"
+  register: product_installconfig_stat
+  when: product_install_currentpath is defined
+
+- name: Set Config Fact
+  ansible.builtin.set_fact:
+    product_install_absoluteconfig: "{{ product_install_currentpath }}\\{{ product_install_config }}"
+  when: product_installconfig_stat.stat.exists is defined and product_installconfig_stat.stat.exists

@@ -1,0 +1,16 @@
+---
+galaxy_info:
+  author: Vijayakumar Sankaramoorthy
+  description: Install EDIGW 22CA Processor service
+  company: Gainwell Technologies
+  license: Gainwell Intellectual Property
+  galaxy_tags:
+    - install
+    - bt
+    - caps
+    - edigw
+  platforms:
+  - name: Windows
+  min_ansible_version: 2.9
+  role_name: cd-edigw-installcaps
+dependencies: []

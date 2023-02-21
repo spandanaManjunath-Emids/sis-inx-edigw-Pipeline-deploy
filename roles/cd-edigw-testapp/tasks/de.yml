@@ -1,0 +1,50 @@
+---
+- name: Initiate Product Test Run
+  ansible.windows.win_shell: |
+      Function Product-TaskTest ($TaskName,$TaskArgument,$TaskLogDir) {
+        $TaskStartTime = Get-Date
+        $TaskLogDate = Get-Date -UFormat "%Y%m%d"
+        Start-ScheduledTask -TaskName $TaskName
+        Do {
+          $SchdStatus = (Get-ScheduledTask $TaskName).State
+        } Until ($SchdStatus -eq "Ready")
+        $TaskLogFile = "$TaskLogDir\$TaskLogDate\${TaskLogDate}_${TaskArgument} Log.txt"
+        if (Test-Path $TaskLogFile) {
+          $TaskExecTime = ((Get-Content $TaskLogFile -Last 3 | Select -First 1).Split(" ") | Select -First 3) -join (" ")
+          if ($TaskExecTime.Split(" ")[-1] -eq "AM" -and ($TaskExecTime.Split(" ")[1]).Split(":")[0] -eq 12) {
+            $TaskExecTime = ($TaskExecTime.Split(" ")[0],(("00",($TaskExecTime.Split(" ")[1]).Split(":")[1],($TaskExecTime.Split(" ")[1]).Split(":")[2]) -join (":")),"AM") -join (" ")
+          }
+          Elseif ($TaskExecTime.Split(" ")[-1] -eq "PM" -and ($TaskExecTime.Split(" ")[1]).Split(":")[0] -ne 12) {
+            $hours = 12 + [int]$(($TaskExecTime.Split(" ")[1]).Split(":")[0])
+            $TaskExecTime = ($TaskExecTime.Split(" ")[0],(($hours,($TaskExecTime.Split(" ")[1]).Split(":")[1],($TaskExecTime.Split(" ")[1]).Split(":")[2]) -join (":")),"PM") -join (" ")
+          }
+          $TaskExecTime = [datetime]::parseexact($TaskExecTime, 'yyyyMMdd HH:mm:ss.fff tt', $null)
+          if ($TaskExecTime -gt $TaskStartTime) {
+            $TaskExecStats = (Get-Content $TaskLogFile -Last 3 | Select -First 1).Split(" ")[-1]
+            if ($TaskExecStats -eq "Success") {
+              return "The task $TaskName executed Successfully"
+            }
+            Else {
+              return $false
+            }
+          }
+          Else {
+            return $false
+          }
+        }
+        Else {
+          return $false
+        }
+      }
+      $TaskLogDir = "{{ product_detest_logdir }}"
+      Product-TaskTest "{{ item.name }}" "{{ item.argument }}" $TaskLogDir
+  loop: "{{ product_tasks_details }}"
+  register: product_detest_result
+
+- name: Product Test Result
+  ansible.builtin.assert:
+    that:
+      - item.stdout_lines[0] != "False"
+    fail_msg: "One or more task failed to execute with expected outcome"
+    success_msg: "{{ item.stdout_lines[0]|string }}"
+  loop: "{{ product_detest_result.results }}"

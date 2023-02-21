@@ -1,0 +1,49 @@
+---
+- name: Validate Product Service existence
+  ansible.windows.win_service:
+    name: "{{ product_install_name }}"
+  register: product_install_svcinfo
+  when: product_install_type in ["caps"]
+
+- name: Validate Product Task existence
+  community.windows.win_scheduled_task_stat:
+    name: "{{ item.name }}"
+  register: product_install_taskinfo
+  loop: "{{ product_tasks_details }}"
+  when: product_install_type in ["de","db"]
+
+- name: Get Current Product Task Installation Directory
+  ansible.builtin.set_fact:
+    product_install_currentpath: "{{ item.actions[0].path | win_dirname | trim(doublequote_character) | trim(backslash_character) }}"
+  when: item.task_exists is defined and item.task_exists
+  loop: "{{ product_install_taskinfo.results }}"
+
+- name: Set Rollback inapplicability for fresh install
+  ansible.builtin.set_fact:
+    is_rollback_skipped: true
+  when: (product_install_svcinfo.exists is defined and not product_install_svcinfo.exists) or
+        (product_install_type in ["de","db"] and product_install_currentpath is undefined)
+
+- name: Feasibility Check for Service or Task Rollback
+  ansible.builtin.include_tasks:
+    file: "bt_check_feasibility.yml"
+  when:
+    - (product_install_svcinfo.exists is defined and product_install_svcinfo.exists) or
+      (product_install_currentpath is defined)
+    - product_install_type in ["dps","de"]
+
+- name: Feasibility Check for DB Rollback
+  ansible.builtin.include_tasks:
+    file: "db_check_feasibility.yml"
+  when:
+    - product_install_currentpath is defined
+    - product_install_type == "db"
+
+- name: Initiate Product Rollback
+  ansible.builtin.include_tasks:
+    file: "{{ product_install_type }}_initiate_rollback.yml"
+  when:
+    - is_rollback_feasible is defined and is_rollback_feasible|bool
+    - is_rollback is defined and is_rollback|bool
+    - (is_rollback_skipped is undefined) or
+      (is_rollback_skipped is defined and not is_rollback_skipped|bool)

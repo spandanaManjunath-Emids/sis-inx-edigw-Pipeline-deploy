@@ -1,0 +1,8 @@
+---
+product_install_name: "EDIGW Directory Polling Service"
+product_install_type: "db"
+product_install_config: "HPP.EDIGateway.DataExtract.exe.config"
+product_dbconnstring_name: "DBConnectionString"
+product_tasks_details: "{{ edigw_detasks_details }}"
+backslash_character: '\'
+doublequote_character: '"'

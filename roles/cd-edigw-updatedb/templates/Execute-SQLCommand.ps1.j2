@@ -1,0 +1,35 @@
+
+[CmdletBinding()]
+param(
+    [Parameter(HelpMessage='Name of Database Instance',Mandatory=$True)]
+    [string]$ServerInstance,
+    [Parameter(HelpMessage='Name of Database',Mandatory=$True)]
+    [string]$Database,
+    [Parameter(HelpMessage='Path of SQL InputFile',Mandatory=$False,ParameterSetName='1')]
+    [string]$InputFile,
+    [Parameter(HelpMessage='Query to execute in SQL',Mandatory=$False,ParameterSetName='2')]
+    [string]$Query
+)
+
+Import-Module SQLServer
+try {
+  if (-Not [string]::IsNullOrWhitespace($InputFile)) {
+    Invoke-SQLCmd -ServerInstance $ServerInstance -Database $Database -InputFile $InputFile -Username {{ product_db_username }} -Password {{ product_db_password }} -ErrorAction Stop
+  }
+  Elseif (-Not [string]::IsNullOrWhitespace($Query)) {
+    Invoke-SQLCmd -ServerInstance $ServerInstance -Database $Database -Query $Query -Username {{ product_db_username }} -Password {{ product_db_password }} -ErrorAction Stop
+  }
+}
+catch {
+  Write-Host $_
+  5..1 | ForEach-Object {
+    If ($_ -gt 1) {
+        "$_ seconds"
+    } Else {
+        "$_ second"
+    }
+    Start-Sleep -Seconds 1
+  }
+  Remove-Item -Path $MyInvocation.MyCommand.Source
+  Exit 1
+}

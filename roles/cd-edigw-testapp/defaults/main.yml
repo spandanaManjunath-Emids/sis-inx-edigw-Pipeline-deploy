@@ -1,0 +1,2 @@
+---
+product_dpstest_inputfile: "{{ role_path }}/files/005010X222A1-TESTID000000"

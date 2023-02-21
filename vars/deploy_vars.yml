@@ -1,0 +1,11 @@
+---
+enable_elevation: true
+elevation_user: "{{ (ostype != 'windows') | ternary('root', 'SYSTEM') }}"
+elevation_method: "{{ (ostype != 'windows') | ternary('sudo', 'runas') }}"
+ping_module_name: "{{ (ostype != 'windows') | ternary('ping', 'win_ping') }}"
+validate_limit: true
+product_install_historybasedir: 'C:\DONOT_DELETE'
+product_install_historyfolder: "{{ product_install_historybasedir }}\\{{ product_name }}"
+product_install_historycsv: "InstallationHistory.csv"
+product_install_historyheader: "DateTime,CurrentVersion,CurrentInstallSource,PreviousVersion,PreviousInstallSource,DBBackupPath"
+product_db_server: "{{ edigw_db_server }}"

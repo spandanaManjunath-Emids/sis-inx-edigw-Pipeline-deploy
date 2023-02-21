@@ -1,0 +1,10 @@
+---
+product_install_name: "EDIGW 277CA Processor Service"
+product_install_config: "EDIGW_277CA_Processor_Service.exe.config"
+product_install_historyheader: "DateTime,CurrentVersion,CurrentInstallSource,PreviousVersion,PreviousInstallSource,DBBackupPath"
+product_install_basepath: "{{ edigw_capsinstall_basepath }}"
+product_install_username: "{{ edigw_capsinstall_username }}"
+product_install_password: "{{ edigw_capsinstall_password }}"
+product_share_paths: "{{ edigw_share_paths }}"
+backslash_character: '\'
+doublequotes_character: '"'

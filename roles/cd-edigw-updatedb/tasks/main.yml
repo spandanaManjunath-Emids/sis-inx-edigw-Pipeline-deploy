@@ -1,0 +1,10 @@
+---
+- name: Get Config info if undefined
+  ansible.builtin.include_tasks:
+    file: "get_config.yml"
+  when: product_install_absoluteconfig is undefined
+
+- name: Initiate Action to DB
+  ansible.builtin.include_tasks:
+    file: "update_db.yml"
+  when: product_install_absoluteconfig is defined

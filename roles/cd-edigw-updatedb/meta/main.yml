@@ -1,0 +1,16 @@
+---
+galaxy_info:
+  author: Vijayakumar Sankaramoorthy
+  description: Update EDIGW DB
+  company: Gainwell Technologies
+  license: Gainwell Intellectual Property
+  galaxy_tags:
+    - update
+    - uprade
+    - db
+    - edigw
+  platforms:
+  - name: Windows
+  min_ansible_version: 2.9
+  role_name: cd-edigw-updatedb
+dependencies: []

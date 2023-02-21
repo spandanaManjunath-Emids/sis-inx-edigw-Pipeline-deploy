@@ -1,0 +1,6 @@
+---
+- name: Rollback EDIGW DE
+  vars:
+    product_install_src: "{{ product_install_previoussrc }}"
+  ansible.builtin.include_role:
+    name: cd-edigw-installde

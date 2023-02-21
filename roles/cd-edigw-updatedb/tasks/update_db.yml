@@ -1,0 +1,138 @@
+---
+- name: Get Product DB Connection Info
+  ansible.windows.win_shell: |
+    Function Get-DBConnectionInfo($Product_WebConfig,$Product_DBConnStringName) {
+      [xml]$WebConfig = Get-Content $Product_WebConfig
+      $DBConnString = ($WebConfig.configuration.appSettings.add | where { $_.key -eq $Product_DBConnStringName }).value
+      if (($DBConnString | measure).count -eq 1) {
+        $DBInstance = ($DBConnString.Split(";") | where {$_ -like "Data Source*"}).Split("=")[-1]
+        $DBInstanceHost = $DBInstance.Split(".")[0]
+        $DBName = ($DBConnString.Split(";") | where {$_ -like "initial catalog*"}).Split("=")[-1]
+        return $DBInstanceHost,$DBInstance,$DBName
+      }
+      else {
+        return $false
+      }
+    }
+    Get-DBConnectionInfo "{{ product_install_absoluteconfig }}" "{{ product_dbconnstring_name }}"
+  changed_when: false
+  register: product_dbconnstring_info
+
+- name: Validate Product DB ConnectionString Retrieval
+  ansible.builtin.fail:
+    msg: "Failed to retrieve Product DB ConnectionString from Product Config {{ product_install_absoluteconfig | win_basename }}"
+  when: product_dbconnstring_info.stdout_lines[0] == "False"
+
+- name: Find SQL Files from Install Source
+  vars:
+    product_db_name: "{{ product_dbconnstring_info.stdout_lines[2] }}"
+  ansible.windows.win_find:
+    paths: "{{ product_install_src }}"
+    patterns: "*-{{ product_db_name }}.sql"
+    recurse: yes
+  register: product_sqlfiles_info
+
+- name: Fail if expected SQL file is unavailable
+  vars:
+    product_db_name: "{{ product_dbconnstring_info.stdout_lines[2] }}"
+  ansible.builtin.fail:
+    msg: "Zero or more than One SQL update file available for the DB {{ product_db_name }}"
+  when: product_sqlfiles_info.matched != 1
+
+- name: Verify if Product Install History exists
+  ansible.windows.win_stat:
+    path: "{{ product_install_historyfolder }}\\{{ product_install_historycsv }}"
+  register: product_install_historystat
+
+- name: Ensure Product Install History folder exists
+  ansible.windows.win_file:
+    path: "{{ product_install_historyfolder }}"
+    state: directory
+
+- name: Insert Product Install History Header
+  ansible.windows.win_copy:
+    content: "{{ product_install_historyheader }}"
+    dest: "{{ product_install_historyfolder }}\\{{ product_install_historycsv }}"
+  when: not product_install_historystat.stat.exists
+  
+- name: Copy SQL Command Script
+  ansible.windows.win_template:
+    src: "Execute-SQLCommand.ps1.j2"
+    dest: "{{ product_install_src }}\\Execute-SQLCommand.ps1"
+
+- name: Product DB Backup Block
+  block:
+    - name: Define Product DB Backup Path
+      vars:
+        product_db_instance: "{{ product_dbconnstring_info.stdout_lines[1] }}"
+        product_db_name: "{{ product_dbconnstring_info.stdout_lines[2] }}"
+      ansible.builtin.set_fact:
+        product_db_backuppath: "{{ product_backup_path }}\\sql\\{{ product_db_name }}.bak"
+        product_db_instanceserver: "{{ ((product_db_instance | split('.'))[0]) | lower }}"
+    
+    - name: "Find Product DB Backups older than {{ product_dbbackup_age }}"
+      delegate_to: "{{ product_db_instanceserver }}"
+      ansible.windows.win_find:
+        age: "{{ product_dbbackup_age }}"
+        age_stamp: mtime
+        paths: "{{ product_dbbackup_dest }}"
+        patterns: "*.bak"
+        recurse: yes
+      register: product_dbbackupfiles_info
+
+    - name: Clear Old Product DB Backups
+      delegate_to: "{{ product_db_instanceserver }}"
+      ansible.windows.win_file:
+        path: "{{ item.path }}"
+        state: absent
+      loop: "{{ product_dbbackupfiles_info.files }}"
+      when: product_dbbackupfiles_info.files | length > 0
+
+    - name: Create Product DB Backup Folder
+      delegate_to: "{{ product_db_instanceserver }}"
+      ansible.windows.win_file:
+        path: "{{ product_backup_path }}\\sql"
+        state: directory
+
+    - name: Initiate Product DB Backup
+      vars:
+        product_db_instance: "{{ product_dbconnstring_info.stdout_lines[1] }}"
+        product_db_name: "{{ product_dbconnstring_info.stdout_lines[2] }}"
+      ansible.windows.win_shell: |
+        If (-Not (Test-Path "C:\Program Files\WindowsPowerShell\Modules\SqlServer")) {
+          Install-PackageProvider -Name NuGet -Force
+          Save-Module SQLServer -Path "C:\Program Files\WindowsPowerShell\Modules" -Force
+        }
+        $DBInstance = "{{ product_db_instance }}"
+        $DBName = "{{ product_db_name }}"
+        $DBBackupPath = "{{ product_db_backuppath }}"
+        $Query = "BACKUP DATABASE $DBName TO DISK = '$DBBackupPath'"
+        cd "{{ product_install_src }}"
+        .\Execute-SQLCommand.ps1 -ServerInstance $DBInstance -Database $DBName -Query $Query
+  when:
+    - product_dbconnstring_info.stdout_lines[0] != "False"
+    - (is_rollback is undefined) or
+      (is_rollback is defined and not is_rollback|bool)
+
+- name: Initiate Product DB Update Deployment
+  vars:
+    product_db_instance: "{{ product_dbconnstring_info.stdout_lines[1] }}"
+    product_db_name: "{{ product_dbconnstring_info.stdout_lines[2] }}"
+    product_db_installfile: "{{ product_sqlfiles_info.files[0].path }}"
+  ansible.windows.win_shell: |
+    If (-Not (Test-Path "C:\Program Files\WindowsPowerShell\Modules\SqlServer")) {
+      Install-PackageProvider -Name NuGet -Force
+      Save-Module SQLServer -Path "C:\Program Files\WindowsPowerShell\Modules" -Force
+    }
+    $DBInstance = "{{ product_db_instance }}"
+    $DBName = "{{ product_db_name }}"
+    $DBInstallFile = "{{ product_db_installfile }}"
+    cd "{{ product_install_src }}"
+    .\Execute-SQLCommand.ps1 -ServerInstance $DBInstance -Database $DBName -InputFile $DBInstallFile
+    Remove-Item -Path "{{ product_install_src }}\Execute-SQLCommand.ps1" -Force
+  when: product_dbconnstring_info.stdout_lines[0] != "False"
+
+- name: Remove SQL Command Script
+  ansible.windows.win_file:
+    path: "{{ product_install_src }}\\Execute-SQLCommand.ps1"
+    state: absent

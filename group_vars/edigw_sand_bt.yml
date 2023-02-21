@@ -1,0 +1,102 @@
+edigw_BizTalkServerName: HPASDEVCOT02
+#edigw_ClaimsWebServerName: hpasdevbas001
+edigw_ClaimsWebServerName: HPASDEVCOT02
+edigw_DBConfigSPName: '[dbo].[up_edigw_get_config_info_partition]'
+edigw_DEConnectionString: >-
+  Data Source=pocrxsandsql01.sandbox.mapshc.com\ENV06,50105;Initial
+  Catalog=EDI_Gateway;Integrated Security=True;
+edigw_DEDayCount: -7
+edigw_DEEMailSenderAddress: e.lakshmanan@gainwelltechnologies.com
+edigw_DEEnableSSL: 'true'
+edigw_DEIsDeleted: 'true'
+edigw_DELog4NetPath: 'H:\\EDIGateway\\Scripts\\Logs\\'
+edigw_DEMailTailerText: >-
+  &lt;br&gt; &lt;/br&gt; &lt;hr&gt; IMPORTANT NOTICE TO RECIPIENT: This email is
+  meant only for the intended recipient of the transmission. In addition,this
+  email may be a communication thats is privileged by law.if you received this
+  email in error,any review,use,disclosure,distribution,or copying of this email
+  is strictly prohibited. Please notify us immediately of the error by return
+  email,and please delete this email from your system. Thank you for your
+  cooperation.
+edigw_DERecipientList: v.sankaramoorthy@gainwelltechnologies.com
+edigw_DESMTPPassword: !vault |
+          $ANSIBLE_VAULT;1.1;AES256
+          62326534333838303433393231303362373037306538326633306665366561306339356433363966
+          6136323263376462303438363636383064326164313433360a376635643131303739386163326466
+          66333165646437396632393739363466646138313930393132623937333163613135356633373737
+          3939373437373633640a363463333935666538306466626362316262363461643039646536663739
+          66666535313837653339346163303835666663343538643362663261623061666531333062376631
+          38646133623565616336393939373261663530333530663664646639303939613633313562363762
+          61316434383538386335636164633437393061303235653464356263356265666431383236656335
+          30363434343362343638
+edigw_DESMTPPort: 25
+edigw_DESMTPServer: smtp.sendgrid.net
+edigw_DESMTPUser: apikey
+edigw_DPSConnectionString: >-
+  server=pocrxsandsql01.sandbox.mapshc.com\ENV06,50105;database=EDI_Gateway;Integrated
+  Security=SSPI
+edigw_DPSProviderName: System.Data.SqlClient
+edigw_EDIGWShareHostName: POCRXSANDWEB01
+edigw_LogBaseDirectoryPath: \\pocrxsandweb01\EDIGateway\EDIGatewayServices\Logs
+edigw_LogFilePath: \\pocrxsandweb01\EDIGateway\EDIGatewayServices\Logs
+edigw_MEVSettingFile: >-
+  I:\Program Files (x86)\Molina\Shared Configuration
+  Files\MEVSConfig\mevssetting.config
+edigw_OADESBatchIDFormat: ST
+edigw_ReceipientEmailIDs: MMSIntegrationGateway@gainwelltechnologies.com
+edigw_SMTPServer: mhcorpmail.molina.mhc
+edigw_SQLMessageQueuePath: .\private$\EDIGW_DirPolling_SQLLogMessages
+edigw_SenderEmailID: Processing-Error-Azure-Dev@gainwelltechnologies.com
+edigw_StoredProcMappingFilePath: >-
+  I:\Program Files (x86)\Molina\Shared Configuration
+  Files\StoreProcedureMapping.xml
+edigw_share_paths:
+  - name: EDIGateway
+    path: H:\EDIGateway
+    description: EDIGateway Admin Share
+  - name: Archive
+    path: H:\EDIGateway\Archive
+    description: Archive Share
+  - name: External
+    path: H:\EDIGateway\External
+    description: External Entity Share
+  - name: Internal
+    path: H:\EDIGateway\Internal
+    description: Internal Entity Share
+  - name: EdifecsX12Share
+    path: H:\EDIGateway\Edifecs\EdifecsX12Share
+    description: Edifecs XEngine Service X12 Share
+edigw_detasks_details:
+  - name: EDIGW-MemberExtract
+    argument: EDIGW_MemberExtract
+    startdate: "{{ ansible_date_time.date }}"
+    starttime: 06:00:00
+  - name: EDIGW-NDCExtract
+    argument: EDIGW_NDCExtract
+    startdate: "{{ ansible_date_time.date }}"
+    starttime: 07:00:00
+  - name: EDIGW-ProvExtract
+    argument: EDIGW_ProvExtract
+    startdate: "{{ ansible_date_time.date }}"
+    starttime: 05:00:00
+edigw_db_server: pocrxsandsql01
+edigw_dpsinstall_basepath: I:\Program Files (x86)\Molina\EDIGW
+edigw_dpsinstall_username: SANDBOX\HpasEdiGWSvc
+edigw_dpsinstall_password: !vault |
+          $ANSIBLE_VAULT;1.1;AES256
+          32313632366265313762633639366533326232373562306261643132636337396133383639346533
+          6136336139636465636637303563326435306333373838340a356663646364373762373237303163
+          61333566386339643731633534393236633261383238376234366165336561663662333663346166
+          3166616165383833320a343032373663633134613432666236393532643566306461643064353261
+          3761
+edigw_deinstall_basepath: I:\Program Files (x86)\Molina\EDIGW
+edigw_deinstall_username: SANDBOX\HpasEdiGWSvc
+edigw_deinstall_password: !vault |
+          $ANSIBLE_VAULT;1.1;AES256
+          32313632366265313762633639366533326232373562306261643132636337396133383639346533
+          6136336139636465636637303563326435306333373838340a356663646364373762373237303163
+          61333566386339643731633534393236633261383238376234366165336561663662333663346166
+          3166616165383833320a343032373663633134613432666236393532643566306461643064353261
+          3761
+edigw_dpstest_inputdir: H:\EDIGateway\Internal\Upload\In\Resubmit
+edigw_dpstest_outputdir: H:\EDIGateway\Archive\X12

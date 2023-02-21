@@ -1,0 +1,6 @@
+---
+product_capstest_inputdir: "{{ edigw_capstest_inputdir }}"
+product_capstest_outputdir: "{{ edigw_capstest_outputdir }}"
+backslash_character: '\'
+product_detest_logdir: "{{ edigw_DELog4NetPath | trim(backslash_character) }}"
+product_tasks_details: "{{ edigw_detasks_details }}"

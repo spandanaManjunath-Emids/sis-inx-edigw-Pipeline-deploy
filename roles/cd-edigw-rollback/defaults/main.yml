@@ -1,0 +1,4 @@
+---
+product_install_historybasedir: 'C:\DONOT_DELETE'
+product_install_historyfolder: "{{ product_install_historybasedir }}\\{{ product_name }}"
+product_install_historycsv: "InstallationHistory.csv"

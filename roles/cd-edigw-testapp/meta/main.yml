@@ -1,0 +1,15 @@
+---
+galaxy_info:
+  author: Vijayakumar Sankaramoorthy
+  description: Test EDIGW Application
+  company: Gainwell Technologies
+  license: Gainwell Intellectual Property
+  galaxy_tags:
+    - test
+    - edigw
+    - caps
+  platforms:
+  - name: Windows
+  min_ansible_version: 2.9
+  role_name: cd-edigw-testapp
+dependencies: []

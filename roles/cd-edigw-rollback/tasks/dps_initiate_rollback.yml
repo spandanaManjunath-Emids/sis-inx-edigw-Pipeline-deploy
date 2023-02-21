@@ -1,0 +1,6 @@
+---
+- name: Rollback EDIGW DPS
+  vars:
+    product_install_src: "{{ product_install_previoussrc }}"
+  ansible.builtin.include_role:
+    name: cd-edigw-installdps
